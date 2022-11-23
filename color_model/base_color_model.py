@@ -17,13 +17,13 @@ class BaseColorModel(Module):
     def args(cls):
         # Specify arguments to pass from command line
         return {
-            "layer_widths": [3, 2],  # (C_LM, C_S, e) --> (a, b)
-            "layer_centres": [5],
-            "rng_seed": 0,
             "max_lm_contrast": 0.3025,
             "max_s_contrast": 0.00655,
             "min_eccentricity": 10,  # deg
             "max_eccentricity": 35,  # deg
+            "layer_widths": [3, 2],  # (C_LM, C_S, e) --> (a, b)
+            "layer_centres": [5],
+            "rng_seed": 0,
         }
 
     def initialize(self):
@@ -78,6 +78,7 @@ class BaseColorModel(Module):
         inp = np.concatenate((img_dkl, ecc_map), axis=-1)
         ellipse_wh_dkl = self.eval(inp).detach().numpy()
 
+        # Convert Output to iDKL
         ellipse_wh_idkl = abs(pedestal_dkl * ellipse_wh_dkl)
         return ellipse_wh_idkl
 
@@ -91,15 +92,18 @@ class BaseColorModel(Module):
         # Remove Luminance Dimension
         energy_vec_idkl = energy_vec_idkl[:-1]
 
-        # Evaluate energy minimizing dkl value
+        # Evaluate Pixel Color Deltas in iDKL
         ellipses_wh_idkl = self.compute_ellipses(img, ecc_map)
         denom = np.sqrt(
             np.sum(ellipses_wh_idkl**2 * energy_vec_idkl**2, axis=-1, keepdims=True))
         img_idkl = (RGB2iDKL @ sRGB2RGB(img.reshape(-1, 3)).T).T
         delta_idkl = ellipses_wh_idkl**2 * energy_vec_idkl / (denom + 1e-9)
 
+        # Apply Color Shift
         out_idkl = img_idkl.copy()
         out_idkl[:, :-1] += delta_idkl
+
+        # Convert Image to sRGB
         out = (iDKL2RGB @ out_idkl.T).T.reshape(img.shape)
         return RGB2sRGB(out)
 

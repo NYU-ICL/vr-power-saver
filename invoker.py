@@ -3,8 +3,8 @@
 #
 # This script was generated with invoker.
 # To regenerate file, run `invoker rebuild`.
-# Date:	22/11/2022
-# Hash:	12039077c9ad1c992736ca88f7574e23
+# Date:	01/12/2022
+# Hash:	483f9a0695c1159eb6f3061ad4d3e28e
 import argparse
 import copy
 import cProfile as profile
@@ -79,8 +79,9 @@ class Module:
     def __init__(self, inp_args=None):
         # Build Config
         if inp_args is None:
-            conf = self.build_config(self.args)
-        conf = self.build_config(inp_args)
+            conf = self.build_config(self.args())
+        else:
+            conf = self.build_config(inp_args)
         self.opt = _deserialize_config(conf)
         self.initialize()
 
@@ -185,12 +186,24 @@ class Workflow:
             arg_dict[script] = {}
         return arg_dict
 
+    @classmethod
+    def _generate_arg_list(cls, arg_dict):
+        out = []
+        for k, v in arg_dict.items():
+            out.append(f"--{k}")
+            if type(v) == list:
+                for item in v:
+                    out.append(str(item))
+            else:
+                out.append(str(v))
+        return out
+
     def run(self):
         for script in self.scripts():
             module = importlib.import_module(script)
             cls = getattr(module, _to_camel_case(script))
-            cls_inst = cls().initialize()
-            cls_inst.all_args = self.arg_dict[script]
+            arg_list = self._generate_arg_list(self.arg_dict[script])
+            cls_inst = cls(arg_list).initialize()
             cls_inst.run()
 
     def profile(self, top=10):
